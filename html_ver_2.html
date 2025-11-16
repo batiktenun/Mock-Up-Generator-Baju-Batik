@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Mockup Ringkas - Panel Kontrol Bawah (Fungsional)</title>
+<title>Mockup Ringkas - Ikon & Panel Bawah</title>
 <style>
 :root {
   --accent: #0b66ff;
@@ -40,18 +40,21 @@ body {
   background: var(--toolbar-bg);
   border-bottom: 1px solid var(--border-color);
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .tool-icon {
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  padding: 8px 12px;
+  padding: 8px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 14px;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  font-size: 18px;
   transition: all 0.2s;
 }
 
@@ -98,11 +101,27 @@ canvas {
   max-height: 0;
   overflow: hidden;
   transition: max-height 0.3s ease;
+  position: relative;
 }
 
 .control-panel.active {
   max-height: 300px;
   overflow-y: auto;
+}
+
+.panel-toggle {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #666;
 }
 
 .control-group {
@@ -186,12 +205,18 @@ button.secondary {
   font-size: 12px;
   color: #666;
 }
+
+.undo-redo-container {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h3 style="margin: 0; font-size: 16px;">Mockup Ringkas - Panel Kontrol Bawah</h3>
+  <h3 style="margin: 0; font-size: 16px;">Mockup Ringkas - Ikon & Panel Bawah</h3>
   <div style="display: flex; gap: 8px;">
     <button id="downloadBtn">Download PNG</button>
     <button id="resetBtn" class="secondary">Reset All</button>
@@ -199,20 +224,22 @@ button.secondary {
 </div>
 
 <div class="toolbar">
-  <div class="tool-icon" data-panel="undoRedoPanel">
-    <span>↶</span> Undo/Redo
+  <div class="tool-icon" data-panel="uploadPanel" title="Upload Gambar">
+    📁
   </div>
-  <div class="tool-icon" data-panel="uploadPanel">
-    <span>📁</span> Upload
+  <div class="tool-icon" data-panel="transformPanel" title="Transformasi">
+    ↔️
   </div>
-  <div class="tool-icon" data-panel="transformPanel">
-    <span>↔️</span> Transform
+  <div class="tool-icon" data-panel="displacePanel" title="Displacement">
+    🌊
   </div>
-  <div class="tool-icon" data-panel="displacePanel">
-    <span>🌊</span> Displacement
+  <div class="tool-icon" data-panel="eraserPanel" title="Eraser">
+    🧽
   </div>
-  <div class="tool-icon" data-panel="eraserPanel">
-    <span>🧽</span> Eraser
+  
+  <div class="undo-redo-container">
+    <div class="tool-icon" id="undoBtn" title="Undo" style="background:#f39c12">↶</div>
+    <div class="tool-icon" id="redoBtn" title="Redo" style="background:#f39c12">↷</div>
   </div>
 </div>
 
@@ -222,17 +249,8 @@ button.secondary {
   </div>
   
   <!-- Panel kontrol di bawah lembar kerja -->
-  <div id="undoRedoPanel" class="control-panel hidden">
-    <div class="control-group">
-      <label>Undo & Redo</label>
-      <div class="row">
-        <button id="undoBtn" style="background:#f39c12">↶ Undo</button>
-        <button id="redoBtn" style="background:#f39c12" disabled>↷ Redo</button>
-      </div>
-    </div>
-  </div>
-
   <div id="uploadPanel" class="control-panel hidden">
+    <div class="panel-toggle">▲</div>
     <div class="control-group">
       <label>Upload Gambar</label>
       <div class="row">
@@ -247,6 +265,7 @@ button.secondary {
   </div>
 
   <div id="transformPanel" class="control-panel hidden">
+    <div class="panel-toggle">▲</div>
     <div class="control-group">
       <label>Transformasi</label>
       
@@ -293,6 +312,7 @@ button.secondary {
   </div>
 
   <div id="displacePanel" class="control-panel hidden">
+    <div class="panel-toggle">▲</div>
     <div class="control-group">
       <label>Displacement</label>
       <div class="row">
@@ -310,6 +330,7 @@ button.secondary {
   </div>
 
   <div id="eraserPanel" class="control-panel hidden">
+    <div class="panel-toggle">▲</div>
     <div class="control-group">
       <label>Eraser (Brush)</label>
       <div class="row">
@@ -342,7 +363,10 @@ button.secondary {
 
 <script>
 // Inisialisasi panel kontrol
-document.querySelectorAll('.tool-icon').forEach(icon => {
+let activeTool = null;
+let activePanel = null;
+
+document.querySelectorAll('.tool-icon[data-panel]').forEach(icon => {
   icon.addEventListener('click', function() {
     const panelId = this.getAttribute('data-panel');
     const panel = document.getElementById(panelId);
@@ -352,9 +376,11 @@ document.querySelectorAll('.tool-icon').forEach(icon => {
       this.classList.remove('active');
       panel.classList.remove('active');
       panel.classList.add('hidden');
+      activeTool = null;
+      activePanel = null;
     } else {
       // Nonaktifkan semua ikon dan sembunyikan semua panel
-      document.querySelectorAll('.tool-icon').forEach(i => {
+      document.querySelectorAll('.tool-icon[data-panel]').forEach(i => {
         i.classList.remove('active');
       });
       document.querySelectorAll('.control-panel').forEach(p => {
@@ -366,6 +392,29 @@ document.querySelectorAll('.tool-icon').forEach(icon => {
       this.classList.add('active');
       panel.classList.remove('hidden');
       panel.classList.add('active');
+      activeTool = panelId;
+      activePanel = panel;
+    }
+  });
+});
+
+// Tombol toggle panel
+document.querySelectorAll('.panel-toggle').forEach(toggle => {
+  toggle.addEventListener('click', function() {
+    const panel = this.parentElement;
+    panel.classList.toggle('active');
+    panel.classList.toggle('hidden');
+    
+    // Update ikon toggle
+    this.textContent = panel.classList.contains('active') ? '▲' : '▼';
+    
+    // Jika panel ditutup, nonaktifkan ikon terkait
+    if (panel.classList.contains('hidden')) {
+      document.querySelectorAll('.tool-icon[data-panel]').forEach(icon => {
+        if (icon.getAttribute('data-panel') === panel.id) {
+          icon.classList.remove('active');
+        }
+      });
     }
   });
 });
@@ -381,6 +430,7 @@ let patternState = { x: c.width/2, y: c.height/2, scale:1, rot:0, alpha:1, tiled
 const eraseMask = document.createElement('canvas');
 let eraseMaskCtx = eraseMask.getContext('2d');
 const undoStack = [];
+const redoStack = [];
 const UNDO_LIMIT = 20;
 
 // pointer tracking for multi-touch detection
@@ -411,10 +461,12 @@ const eraserBtn = document.getElementById('eraserBtn');
 const brushSizeEl = document.getElementById('brushSize');
 const brushHardEl = document.getElementById('brushHard');
 const undoBtn = document.getElementById('undoBtn');
+const redoBtn = document.getElementById('redoBtn');
 const resetEraseBtn = document.getElementById('resetEraseBtn');
 
-// initialize undo button disabled
+// initialize undo/redo buttons
 undoBtn.disabled = true;
+redoBtn.disabled = true;
 
 // helpers
 function ensureEraseMaskSize(w,h){
@@ -425,7 +477,9 @@ function ensureEraseMaskSize(w,h){
     eraseMaskCtx.fillStyle = 'white';
     eraseMaskCtx.fillRect(0,0,w,h);
     undoStack.length = 0;
+    redoStack.length = 0;
     undoBtn.disabled = true;
+    redoBtn.disabled = true;
   }
 }
 
@@ -552,26 +606,58 @@ function draw(){
 function drawCheckerBackground(context,w,h){ const size=16; for(let y=0;y<h;y+=size) for(let x=0;x<w;x+=size){ const even=((x/size)+(y/size))%2===0; context.fillStyle=even?'#f8f8f8':'#efefef'; context.fillRect(x,y,size,size); } }
 function syncUI(){ posX.value=Math.round(patternState.x); posY.value=Math.round(patternState.y); scaleEl.value=patternState.scale; rotationEl.value=patternState.rot; opacityEl.value=patternState.alpha; }
 
-// ERASER: push undo, undo, reset
-function pushUndo(){ try{ const data = eraseMaskCtx.getImageData(0,0,eraseMask.width,eraseMask.height); undoStack.push(data); if(undoStack.length>UNDO_LIMIT) undoStack.shift(); undoBtn.disabled=false; }catch(e){} }
-function undoErase(){ if(undoStack.length===0) return; const img = undoStack.pop(); eraseMaskCtx.putImageData(img,0,0); if(undoStack.length===0) undoBtn.disabled=true; draw(); }
+// ERASER: push undo, undo, redo, reset
+function pushUndo(){ 
+  try{ 
+    const data = eraseMaskCtx.getImageData(0,0,eraseMask.width,eraseMask.height); 
+    undoStack.push(data); 
+    if(undoStack.length>UNDO_LIMIT) undoStack.shift(); 
+    undoBtn.disabled=false; 
+    // Clear redo stack when new action is performed
+    redoStack.length = 0;
+    redoBtn.disabled = true;
+  }catch(e){} 
+}
+
+function undoErase(){ 
+  if(undoStack.length===0) return; 
+  const currentState = eraseMaskCtx.getImageData(0,0,eraseMask.width,eraseMask.height);
+  redoStack.push(currentState);
+  redoBtn.disabled = false;
+  
+  const img = undoStack.pop(); 
+  eraseMaskCtx.putImageData(img,0,0); 
+  if(undoStack.length===0) undoBtn.disabled=true; 
+  draw(); 
+}
+
+function redoErase(){ 
+  if(redoStack.length===0) return; 
+  const currentState = eraseMaskCtx.getImageData(0,0,eraseMask.width,eraseMask.height);
+  undoStack.push(currentState);
+  undoBtn.disabled = false;
+  
+  const img = redoStack.pop(); 
+  eraseMaskCtx.putImageData(img,0,0); 
+  if(redoStack.length===0) redoBtn.disabled=true; 
+  draw(); 
+}
+
 undoBtn.addEventListener('click', undoErase);
+redoBtn.addEventListener('click', redoErase);
 resetEraseBtn.addEventListener('click', ()=>{ pushUndo(); eraseMaskCtx.clearRect(0,0,eraseMask.width,eraseMask.height); eraseMaskCtx.fillStyle='white'; eraseMaskCtx.fillRect(0,0,eraseMask.width,eraseMask.height); draw(); });
 
 // Eraser toggle
 eraserBtn.addEventListener('click', ()=>{ eraserMode = !eraserMode; eraserBtn.style.background = eraserMode ? '#111' : '#666'; eraserBtn.textContent = eraserMode ? 'Eraser' : 'Paint'; });
 
 // pointer tracking (multi-touch safe)
-// Track pointerdown/up to identify number of active pointers. If >1, disable erasing actions.
 c.addEventListener('pointerdown', e=>{
   activePointers.add(e.pointerId);
   // if multi-touch active, don't start erasing (allow pinch-zoom native)
   if(activePointers.size > 1){
-    // if currently capturing, release
     isErasing = false;
     dragging = false;
     lastPointerId = null;
-    // still allow pointer capture for pinch? do not capture to keep native pinch behaviour
     return;
   }
 
@@ -586,22 +672,18 @@ c.addEventListener('pointerdown', e=>{
     if(Math.abs(rx) <= w/2+20 && Math.abs(ry) <= h/2+20){ dragging=true; dragOffset.x=dx; dragOffset.y=dy; c.setPointerCapture(e.pointerId); lastPointerId=e.pointerId; return; }
   }
 
-  // Start erasing/painting if eraserMode OR (paint mode) -> we allow paint to write back? For now both modes use same brush but destination-out will erase.
-  // ensure eraseMask size
+  // Start erasing/painting
   ensureEraseMaskSize(c.width,c.height);
   pushUndo();
   isErasing = true;
   lastPointerId = e.pointerId;
-  // capture pointer to keep receiving move/up
   try{ c.setPointerCapture(e.pointerId); }catch(_){} 
   doBrushStroke(e.clientX,e.clientY);
 });
 
 c.addEventListener('pointermove', e=>{
-  // keep active pointer set updated
   if(!activePointers.has(e.pointerId)) activePointers.add(e.pointerId);
 
-  // if multi-touch, ignore erasing moves
   if(activePointers.size > 1){ return; }
 
   if(dragging && !eraserMode){
@@ -615,7 +697,6 @@ c.addEventListener('pointermove', e=>{
 });
 
 c.addEventListener('pointerup', e=>{
-  // remove pointer from set
   activePointers.delete(e.pointerId);
 
   if(lastPointerId === e.pointerId){
@@ -633,7 +714,6 @@ c.addEventListener('pointercancel', e=>{
 // Brush drawing onto eraseMask (destination-out)
 function doBrushStroke(clientX,clientY){
   if(!eraseMaskCtx) return;
-  // if multi-touch came in meanwhile, skip
   if(activePointers.size > 1) return;
 
   const rect=c.getBoundingClientRect(); const x=clientX-rect.left, y=clientY-rect.top;
@@ -648,7 +728,6 @@ function doBrushStroke(clientX,clientY){
   bctx.clearRect(0,0,bs,bs); bctx.fillStyle=g; bctx.fillRect(0,0,bs,bs);
 
   eraseMaskCtx.save();
-  // destination-out -> remove from mask (make transparent)
   eraseMaskCtx.globalCompositeOperation = 'destination-out';
   eraseMaskCtx.drawImage(b, x - bs/2, y - bs/2, bs, bs);
   eraseMaskCtx.globalCompositeOperation = 'source-over';
@@ -678,7 +757,6 @@ document.querySelectorAll('.step').forEach(btn=>{
     if(!el) return;
     let val = Number(el.value);
     val = val + step;
-    // clamp within min/max if present
     if(el.min !== undefined && el.min !== '') val = Math.max(Number(el.min), val);
     if(el.max !== undefined && el.max !== '') val = Math.min(Number(el.max), val);
     el.value = val;
@@ -699,7 +777,9 @@ resetBtn.addEventListener('click', ()=>{
   eraseMaskCtx.fillStyle='white'; 
   eraseMaskCtx.fillRect(0,0,eraseMask.width,eraseMask.height); 
   undoStack.length=0; 
+  redoStack.length=0;
   undoBtn.disabled=true; 
+  redoBtn.disabled=true;
   document.getElementById('shirtFile').value=''; 
   document.getElementById('patternFile').value=''; 
   syncUI(); 
