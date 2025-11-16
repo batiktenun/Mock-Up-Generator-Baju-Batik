@@ -397,4 +397,114 @@ c.addEventListener('pointercancel', e=>{
 // Brush drawing onto eraseMask (destination-out)
 function doBrushStroke(clientX,clientY){
   if(!eraseMaskCtx) return;
-  //
+  // if multi-touch came in meanwhile, skip
+  if(activePointers.size > 1) return;
+
+  const rect=c.getBoundingClientRect(); const x=clientX-rect.left, y=clientY-rect.top;
+  const size = Number(brushSizeEl.value);
+  const hardness = Number(brushHardEl.value);
+
+  const b = document.createElement('canvas'); const bs=Math.max(8,Math.ceil(size)); b.width=bs; b.height=bs; const bctx=b.getContext('2d');
+  const g = bctx.createRadialGradient(bs/2,bs/2,0,bs/2,bs/2,bs/2);
+  g.addColorStop(0,'rgba(0,0,0,1)');
+  const stop = Math.max(0, Math.min(1, hardness));
+  g.addColorStop(stop,'rgba(0,0,0,1)'); g.addColorStop(1,'rgba(0,0,0,0)');
+  bctx.clearRect(0,0,bs,bs); bctx.fillStyle=g; bctx.fillRect(0,0,bs,bs);
+
+  eraseMaskCtx.save();
+  // destination-out -> remove from mask (make transparent)
+  eraseMaskCtx.globalCompositeOperation = 'destination-out';
+  eraseMaskCtx.drawImage(b, x - bs/2, y - bs/2, bs, bs);
+  eraseMaskCtx.globalCompositeOperation = 'source-over';
+  eraseMaskCtx.restore();
+
+  draw();
+}
+
+// slider listeners (also update patternState)
+[posX,posY,scaleEl,rotationEl,opacityEl,displaceStrength].forEach(el=>{
+  el.addEventListener('input', ()=>{
+    patternState.x = Number(posX.value);
+    patternState.y = Number(posY.value);
+    patternState.scale = Number(scaleEl.value);
+    patternState.rot = Number(rotationEl.value);
+    patternState.alpha = Number(opacityEl.value);
+    draw();
+  });
+});
+
+// +/- step buttons
+document.querySelectorAll('.step').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const targetId = btn.dataset.target;
+    const step = Number(btn.dataset.step);
+    const el = document.getElementById(targetId);
+    if(!el) return;
+    let val = Number(el.value);
+    val = val + step;
+    // clamp within min/max if present
+    if(el.min !== undefined && el.min !== '') val = Math.max(Number(el.min), val);
+    if(el.max !== undefined && el.max !== '') val = Math.min(Number(el.max), val);
+    el.value = val;
+    el.dispatchEvent(new Event('input'));
+  });
+});
+
+// center/tile/reset
+centerBtn.addEventListener('click', ()=>{ patternState.x = c.width/2; patternState.y = c.height/2; syncUI(); draw(); });
+tileBtn.addEventListener('click', ()=>{ patternState.tiled = !patternState.tiled; tileBtn.textContent = patternState.tiled ? 'Tile: ON' : 'Toggle Tile'; draw(); });
+resetBtn.addEventListener('click', ()=>{ shirtImg=null; patternImg=null; maskCanvas=null; lumMap=null; patternState={x:c.width/2,y:c.height/2,scale:1,rot:0,alpha:1,tiled:false}; eraseMaskCtx.clearRect(0,0,eraseMask.width,eraseMask.height); eraseMaskCtx.fillStyle='white'; eraseMaskCtx.fillRect(0,0,eraseMask.width,eraseMask.height); undoStack.length=0; undoBtn.disabled=true; document.getElementById('shirtFile').value=''; document.getElementById('patternFile').value=''; syncUI(); draw(); });
+
+// undo & resetErase already wired
+// download logic (similar to previous version)
+downloadBtn.addEventListener('click', ()=>{
+  if(!shirtImg && !patternImg) return;
+  const scaleFactor = 2; const tmp=document.createElement('canvas'); tmp.width=c.width*scaleFactor; tmp.height=c.height*scaleFactor;
+  const tctx=tmp.getContext('2d');
+  if(shirtImg) tctx.drawImage(shirtImg,0,0,tmp.width,tmp.height); else drawCheckerBackground(tctx,tmp.width,tmp.height);
+
+  // build high-res pattern
+  const pCanvas=document.createElement('canvas'); pCanvas.width=tmp.width; pCanvas.height=tmp.height; const pctx=pCanvas.getContext('2d');
+  pctx.save(); pctx.translate(patternState.x*scaleFactor, patternState.y*scaleFactor); pctx.rotate(patternState.rot*Math.PI/180); pctx.scale(patternState.scale, patternState.scale);
+  if(patternState.tiled){ const patt=pctx.createPattern(patternImg,'repeat'); pctx.fillStyle=patt; pctx.fillRect(-pCanvas.width,-pCanvas.height,pCanvas.width*2,pCanvas.height*2); }
+  else { const w=patternImg.naturalWidth||patternImg.width; const h=patternImg.naturalHeight||patternImg.height; const defaultScale=Math.min((pCanvas.width*0.6)/w,(pCanvas.height*0.6)/h); const drawW=w*defaultScale; const drawH=h*defaultScale; pctx.drawImage(patternImg,-drawW/2,-drawH/2,drawW,drawH); }
+  pctx.restore();
+
+  if(!displaceToggle.checked || !lumMap){
+    const eScaled=document.createElement('canvas'); eScaled.width=tmp.width; eScaled.height=tmp.height; const ectx=eScaled.getContext('2d'); ectx.drawImage(eraseMask,0,0,tmp.width,tmp.height);
+    const temp=document.createElement('canvas'); temp.width=tmp.width; temp.height=tmp.height; const tt=temp.getContext('2d'); tt.drawImage(pCanvas,0,0); tt.globalCompositeOperation='destination-in'; tt.drawImage(eScaled,0,0); tt.globalCompositeOperation='source-over';
+    if(maskCanvas){ const mScaled=document.createElement('canvas'); mScaled.width=tmp.width; mScaled.height=tmp.height; const mctx=mScaled.getContext('2d'); mctx.drawImage(maskCanvas,0,0,tmp.width,tmp.height); tt.globalCompositeOperation='destination-in'; tt.drawImage(mScaled,0,0); tt.globalCompositeOperation='source-over'; }
+    tctx.globalAlpha = patternState.alpha; tctx.globalCompositeOperation='multiply'; tctx.drawImage(temp,0,0); tctx.globalCompositeOperation='source-over'; tctx.globalAlpha=1;
+    const link=document.createElement('a'); link.download='mockup.png'; link.href=tmp.toDataURL('image/png'); link.click(); return;
+  }
+
+  // displacement high-res
+  const scaledLum = scaleLumMap(lumMap, c.width, c.height, tmp.width, tmp.height);
+  const pw=pCanvas.width, ph=pCanvas.height; const pDataHR=pctx.getImageData(0,0,pw,ph).data;
+  const displacedHR=document.createElement('canvas'); displacedHR.width=pw; displacedHR.height=ph; const dctxHR=displacedHR.getContext('2d'); const outHR=dctxHR.createImageData(pw,ph);
+  const outDataHR=outHR.data; const strength=Number(displaceStrength.value);
+  const gx=new Float32Array(pw*ph), gy=new Float32Array(pw*ph);
+  for(let y=0;y<ph;y++) for(let x=0;x<pw;x++){ const i=y*pw+x; const left = x>0?scaledLum[i-1]:scaledLum[i]; const right = x<pw-1?scaledLum[i+1]:scaledLum[i]; const top = y>0?scaledLum[i-pw]:scaledLum[i]; const bottom = y<ph-1?scaledLum[i+pw]:scaledLum[i]; gx[i]=right-left; gy[i]=bottom-top; }
+  for(let y=0;y<ph;y++) for(let x=0;x<pw;x++){ const i=y*pw+x; const dx=-gx[i]*(strength/50); const dy=-gy[i]*(strength/50); let sx=Math.round(x+dx), sy=Math.round(y+dy); if(sx<0) sx=0; if(sx>=pw) sx=pw-1; if(sy<0) sy=0; if(sy>=ph) sy=ph-1; const si=(sy*pw+sx)*4, oi=i*4; outDataHR[oi]=pDataHR[si]; outDataHR[oi+1]=pDataHR[si+1]; outDataHR[oi+2]=pDataHR[si+2]; outDataHR[oi+3]=pDataHR[si+3]; }
+  dctxHR.putImageData(outHR,0,0);
+
+  // apply erase mask scaled & shirt mask scaled
+  const eScaled=document.createElement('canvas'); eScaled.width=tmp.width; eScaled.height=tmp.height; const ectx=eScaled.getContext('2d'); ectx.drawImage(eraseMask,0,0,tmp.width,tmp.height);
+  const mScaled=document.createElement('canvas'); mScaled.width=tmp.width; mScaled.height=tmp.height; const mctx=mScaled.getContext('2d'); if(maskCanvas) mctx.drawImage(maskCanvas,0,0,tmp.width,tmp.height);
+  const temp2=document.createElement('canvas'); temp2.width=tmp.width; temp2.height=tmp.height; const tt=temp2.getContext('2d');
+  tt.drawImage(displacedHR,0,0,tmp.width,tmp.height); tt.globalCompositeOperation='destination-in'; tt.drawImage(eScaled,0,0); tt.globalCompositeOperation='source-over'; if(maskCanvas){ tt.globalCompositeOperation='destination-in'; tt.drawImage(mScaled,0,0); tt.globalCompositeOperation='source-over'; }
+  tctx.globalAlpha=patternState.alpha; tctx.globalCompositeOperation='multiply'; tctx.drawImage(temp2,0,0); tctx.globalCompositeOperation='source-over'; tctx.globalAlpha=1;
+  const link=document.createElement('a'); link.download='mockup.png'; link.href=tmp.toDataURL('image/png'); link.click();
+});
+
+// helper scale lum map
+function scaleLumMap(src, sw, sh, tw, th){ if(!src) return null; const out=new Float32Array(tw*th); for(let y=0;y<th;y++) for(let x=0;x<tw;x++){ const sx=Math.floor(x*sw/tw), sy=Math.floor(y*sh/th); out[y*tw+x] = src[sy*sw + sx]; } return out; }
+
+// +/- slider keyboard-friendly: add small steps when arrow keys etc (optional)
+function syncUI(){ posX.value=Math.round(patternState.x); posY.value=Math.round(patternState.y); scaleEl.value=patternState.scale; rotationEl.value=patternState.rot; opacityEl.value=patternState.alpha; }
+function init(){ ensureEraseMaskSize(c.width,c.height); syncUI(); draw(); }
+init();
+
+</script>
+</body>
+</html>
