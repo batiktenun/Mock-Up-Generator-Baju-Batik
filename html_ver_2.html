@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Mockup Ringkas - Ikon Kecil & Paint Berfungsi</title>
+<title>Mockup Ringkas - Eraser Presisi</title>
 <style>
 :root {
   --accent: #0b66ff;
@@ -251,7 +251,7 @@ button.secondary {
 <body>
 
 <div class="header">
-  <h3 style="margin: 0; font-size: 16px;">Mockup Ringkas - Ikon Kecil & Paint Berfungsi</h3>
+  <h3 style="margin: 0; font-size: 16px;">Mockup Ringkas - Eraser Presisi</h3>
   <div style="display: flex; gap: 8px;">
     <button id="downloadBtn">Download PNG</button>
     <button id="resetBtn" class="secondary">Reset All</button>
@@ -371,7 +371,7 @@ button.secondary {
     <div class="panel-slider"></div>
     <div class="panel-toggle">▲</div>
     <div class="control-group">
-      <label>Eraser & Paint</label>
+      <label>Eraser</label>
       <div class="row">
         <button id="eraserBtn">Eraser</button>
         <button id="resetEraseBtn" style="background:#e53e3e">Reset Erase</button>
@@ -504,7 +504,7 @@ const UNDO_LIMIT = 20;
 // pointer tracking for multi-touch detection
 const activePointers = new Set();
 
-let eraserMode = true;
+let eraserActive = true;
 let isErasing = false;
 let dragging = false;
 let dragOffset = {x:0,y:0};
@@ -715,11 +715,10 @@ undoBtn.addEventListener('click', undoErase);
 redoBtn.addEventListener('click', redoErase);
 resetEraseBtn.addEventListener('click', ()=>{ pushUndo(); eraseMaskCtx.clearRect(0,0,eraseMask.width,eraseMask.height); eraseMaskCtx.fillStyle='white'; eraseMaskCtx.fillRect(0,0,eraseMask.width,eraseMask.height); draw(); });
 
-// Eraser/Paint toggle - PERBAIKAN FUNGSI PAINT
+// Eraser toggle - HANYA AKTIF/NON-AKTIF, TANPA PAINT
 eraserBtn.addEventListener('click', ()=>{ 
-  eraserMode = !eraserMode; 
-  eraserBtn.style.background = eraserMode ? '#111' : '#0b66ff'; 
-  eraserBtn.textContent = eraserMode ? 'Eraser' : 'Paint'; 
+  eraserActive = !eraserActive; 
+  eraserBtn.style.background = eraserActive ? '#0b66ff' : '#666'; 
 });
 
 // pointer tracking (multi-touch safe)
@@ -733,9 +732,14 @@ c.addEventListener('pointerdown', e=>{
     return;
   }
 
-  // single touch: decide whether to start drag or eraser/paint
-  const rect=c.getBoundingClientRect(); const x=e.clientX-rect.left, y=e.clientY-rect.top;
-  if(!eraserMode && patternImg){
+  // single touch: decide whether to start drag or eraser
+  const rect=c.getBoundingClientRect(); 
+  const scaleX = c.width / rect.width;
+  const scaleY = c.height / rect.height;
+  const x = (e.clientX - rect.left) * scaleX;
+  const y = (e.clientY - rect.top) * scaleY;
+  
+  if(!eraserActive && patternImg){
     // hit test for drag
     const w = (patternImg.naturalWidth||patternImg.width) * Math.min((c.width*0.6)/(patternImg.naturalWidth||patternImg.width),(c.height*0.6)/(patternImg.naturalHeight||patternImg.height)) * patternState.scale;
     const h = (patternImg.naturalHeight||patternImg.height) * Math.min((c.width*0.6)/(patternImg.naturalWidth||patternImg.width),(c.height*0.6)/(patternImg.naturalHeight||patternImg.height)) * patternState.scale;
@@ -744,13 +748,15 @@ c.addEventListener('pointerdown', e=>{
     if(Math.abs(rx) <= w/2+20 && Math.abs(ry) <= h/2+20){ dragging=true; dragOffset.x=dx; dragOffset.y=dy; c.setPointerCapture(e.pointerId); lastPointerId=e.pointerId; return; }
   }
 
-  // Start erasing/painting
-  ensureEraseMaskSize(c.width,c.height);
-  pushUndo();
-  isErasing = true;
-  lastPointerId = e.pointerId;
-  try{ c.setPointerCapture(e.pointerId); }catch(_){} 
-  doBrushStroke(e.clientX,e.clientY);
+  // Start erasing jika eraser aktif
+  if (eraserActive) {
+    ensureEraseMaskSize(c.width,c.height);
+    pushUndo();
+    isErasing = true;
+    lastPointerId = e.pointerId;
+    try{ c.setPointerCapture(e.pointerId); }catch(_){} 
+    doBrushStroke(x, y);
+  }
 });
 
 c.addEventListener('pointermove', e=>{
@@ -758,14 +764,22 @@ c.addEventListener('pointermove', e=>{
 
   if(activePointers.size > 1){ return; }
 
-  if(dragging && !eraserMode){
-    const rect=c.getBoundingClientRect(); const x=e.clientX-rect.left, y=e.clientY-rect.top;
-    patternState.x = x - dragOffset.x; patternState.y = y - dragOffset.y;
-    syncUI(); draw(); return;
+  const rect=c.getBoundingClientRect(); 
+  const scaleX = c.width / rect.width;
+  const scaleY = c.height / rect.height;
+  const x = (e.clientX - rect.left) * scaleX;
+  const y = (e.clientY - rect.top) * scaleY;
+
+  if(dragging && !eraserActive){
+    patternState.x = x - dragOffset.x; 
+    patternState.y = y - dragOffset.y;
+    syncUI(); 
+    draw(); 
+    return;
   }
 
-  if(!isErasing || lastPointerId !== e.pointerId) return;
-  doBrushStroke(e.clientX,e.clientY);
+  if(!isErasing || lastPointerId !== e.pointerId || !eraserActive) return;
+  doBrushStroke(x, y);
 });
 
 c.addEventListener('pointerup', e=>{
@@ -783,48 +797,33 @@ c.addEventListener('pointercancel', e=>{
   isErasing = false; dragging=false; lastPointerId=null;
 });
 
-// Brush drawing onto eraseMask - PERBAIKAN UNTUK PAINT
-function doBrushStroke(clientX,clientY){
-  if(!eraseMaskCtx) return;
+// Brush drawing onto eraseMask - HANYA UNTUK ERASER
+function doBrushStroke(x, y){
+  if(!eraseMaskCtx || !eraserActive) return;
   if(activePointers.size > 1) return;
 
-  const rect=c.getBoundingClientRect(); const x=clientX-rect.left, y=clientY-rect.top;
   const size = Number(brushSizeEl.value);
   const hardness = Number(brushHardEl.value);
 
-  const b = document.createElement('canvas'); const bs=Math.max(8,Math.ceil(size)); b.width=bs; b.height=bs; const bctx=b.getContext('2d');
-  const g = bctx.createRadialGradient(bs/2,bs/2,0,bs/2,bs/2,bs/2);
+  const b = document.createElement('canvas'); 
+  const bs=Math.max(8,Math.ceil(size)); 
+  b.width=bs; 
+  b.height=bs; 
+  const bctx=b.getContext('2d');
   
-  // Perbedaan brush untuk eraser vs paint
-  if (eraserMode) {
-    // Eraser: transparan di tengah, transparan di tepi (menghapus)
-    g.addColorStop(0,'rgba(0,0,0,1)');
-    const stop = Math.max(0, Math.min(1, hardness));
-    g.addColorStop(stop,'rgba(0,0,0,1)'); 
-    g.addColorStop(1,'rgba(0,0,0,0)');
-  } else {
-    // Paint: putih di tengah, transparan di tepi (mengembalikan)
-    g.addColorStop(0,'rgba(255,255,255,1)');
-    const stop = Math.max(0, Math.min(1, hardness));
-    g.addColorStop(stop,'rgba(255,255,255,1)'); 
-    g.addColorStop(1,'rgba(255,255,255,0)');
-  }
+  // Brush untuk eraser
+  const g = bctx.createRadialGradient(bs/2,bs/2,0,bs/2,bs/2,bs/2);
+  g.addColorStop(0,'rgba(0,0,0,1)');
+  const stop = Math.max(0, Math.min(1, hardness));
+  g.addColorStop(stop,'rgba(0,0,0,1)'); 
+  g.addColorStop(1,'rgba(0,0,0,0)');
   
   bctx.clearRect(0,0,bs,bs); 
   bctx.fillStyle=g; 
   bctx.fillRect(0,0,bs,bs);
 
   eraseMaskCtx.save();
-  
-  // Perbedaan composite operation untuk eraser vs paint
-  if (eraserMode) {
-    // Eraser: menghilangkan bagian mask (membuat transparan)
-    eraseMaskCtx.globalCompositeOperation = 'destination-out';
-  } else {
-    // Paint: menambahkan bagian mask (membuat opaque)
-    eraseMaskCtx.globalCompositeOperation = 'source-over';
-  }
-  
+  eraseMaskCtx.globalCompositeOperation = 'destination-out';
   eraseMaskCtx.drawImage(b, x - bs/2, y - bs/2, bs, bs);
   eraseMaskCtx.globalCompositeOperation = 'source-over';
   eraseMaskCtx.restore();
