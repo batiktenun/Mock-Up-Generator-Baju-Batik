@@ -31,6 +31,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .toolbar {
@@ -42,6 +43,7 @@ body {
   flex-wrap: nowrap;
   align-items: center;
   overflow-x: auto;
+  flex-shrink: 0;
 }
 
 .tool-icon {
@@ -76,6 +78,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 
 .workspace {
@@ -104,6 +107,7 @@ canvas {
   overflow: hidden;
   transition: max-height 0.3s ease;
   position: relative;
+  flex-shrink: 0;
 }
 
 .control-panel.active {
@@ -211,6 +215,7 @@ button.secondary {
   background: var(--toolbar-bg);
   border-top: 1px solid var(--border-color);
   text-align: center;
+  flex-shrink: 0;
 }
 
 .hidden {
