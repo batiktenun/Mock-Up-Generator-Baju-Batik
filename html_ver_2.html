@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Mockup Ringkas - Ikon & Panel Bawah</title>
+<title>Mockup Ringkas - Ikon Kecil & Paint Berfungsi</title>
 <style>
 :root {
   --accent: #0b66ff;
@@ -35,27 +35,29 @@ body {
 
 .toolbar {
   display: flex;
-  gap: 8px;
-  padding: 8px 16px;
+  gap: 6px;
+  padding: 6px 12px;
   background: var(--toolbar-bg);
   border-bottom: 1px solid var(--border-color);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
+  overflow-x: auto;
 }
 
 .tool-icon {
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  padding: 8px;
+  padding: 6px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  font-size: 18px;
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
   transition: all 0.2s;
+  flex-shrink: 0;
 }
 
 .tool-icon:hover {
@@ -122,6 +124,20 @@ canvas {
   cursor: pointer;
   font-size: 12px;
   color: #666;
+  z-index: 10;
+}
+
+.panel-slider {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 6px;
+  background: #ddd;
+  border-radius: 3px;
+  cursor: ns-resize;
+  z-index: 5;
 }
 
 .control-group {
@@ -208,15 +224,34 @@ button.secondary {
 
 .undo-redo-container {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   margin-left: auto;
+}
+
+/* Scrollbar styling for toolbar */
+.toolbar::-webkit-scrollbar {
+  height: 4px;
+}
+
+.toolbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 2px;
+}
+
+.toolbar::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 2px;
+}
+
+.toolbar::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h3 style="margin: 0; font-size: 16px;">Mockup Ringkas - Ikon & Panel Bawah</h3>
+  <h3 style="margin: 0; font-size: 16px;">Mockup Ringkas - Ikon Kecil & Paint Berfungsi</h3>
   <div style="display: flex; gap: 8px;">
     <button id="downloadBtn">Download PNG</button>
     <button id="resetBtn" class="secondary">Reset All</button>
@@ -250,6 +285,7 @@ button.secondary {
   
   <!-- Panel kontrol di bawah lembar kerja -->
   <div id="uploadPanel" class="control-panel hidden">
+    <div class="panel-slider"></div>
     <div class="panel-toggle">▲</div>
     <div class="control-group">
       <label>Upload Gambar</label>
@@ -265,6 +301,7 @@ button.secondary {
   </div>
 
   <div id="transformPanel" class="control-panel hidden">
+    <div class="panel-slider"></div>
     <div class="panel-toggle">▲</div>
     <div class="control-group">
       <label>Transformasi</label>
@@ -312,6 +349,7 @@ button.secondary {
   </div>
 
   <div id="displacePanel" class="control-panel hidden">
+    <div class="panel-slider"></div>
     <div class="panel-toggle">▲</div>
     <div class="control-group">
       <label>Displacement</label>
@@ -330,9 +368,10 @@ button.secondary {
   </div>
 
   <div id="eraserPanel" class="control-panel hidden">
+    <div class="panel-slider"></div>
     <div class="panel-toggle">▲</div>
     <div class="control-group">
-      <label>Eraser (Brush)</label>
+      <label>Eraser & Paint</label>
       <div class="row">
         <button id="eraserBtn">Eraser</button>
         <button id="resetEraseBtn" style="background:#e53e3e">Reset Erase</button>
@@ -365,6 +404,7 @@ button.secondary {
 // Inisialisasi panel kontrol
 let activeTool = null;
 let activePanel = null;
+let isResizingPanel = false;
 
 document.querySelectorAll('.tool-icon[data-panel]').forEach(icon => {
   icon.addEventListener('click', function() {
@@ -416,6 +456,34 @@ document.querySelectorAll('.panel-toggle').forEach(toggle => {
         }
       });
     }
+  });
+});
+
+// Slider untuk mengatur tinggi panel
+document.querySelectorAll('.panel-slider').forEach(slider => {
+  slider.addEventListener('mousedown', function(e) {
+    isResizingPanel = true;
+    const panel = this.parentElement;
+    const startY = e.clientY;
+    const startHeight = parseInt(document.defaultView.getComputedStyle(panel).maxHeight, 10);
+    
+    function doResize(e) {
+      if (!isResizingPanel) return;
+      const newHeight = startHeight + (startY - e.clientY);
+      if (newHeight > 100 && newHeight < 500) {
+        panel.style.maxHeight = newHeight + 'px';
+      }
+    }
+    
+    function stopResize() {
+      isResizingPanel = false;
+      document.removeEventListener('mousemove', doResize);
+      document.removeEventListener('mouseup', stopResize);
+    }
+    
+    document.addEventListener('mousemove', doResize);
+    document.addEventListener('mouseup', stopResize);
+    e.preventDefault();
   });
 });
 
@@ -647,8 +715,12 @@ undoBtn.addEventListener('click', undoErase);
 redoBtn.addEventListener('click', redoErase);
 resetEraseBtn.addEventListener('click', ()=>{ pushUndo(); eraseMaskCtx.clearRect(0,0,eraseMask.width,eraseMask.height); eraseMaskCtx.fillStyle='white'; eraseMaskCtx.fillRect(0,0,eraseMask.width,eraseMask.height); draw(); });
 
-// Eraser toggle
-eraserBtn.addEventListener('click', ()=>{ eraserMode = !eraserMode; eraserBtn.style.background = eraserMode ? '#111' : '#666'; eraserBtn.textContent = eraserMode ? 'Eraser' : 'Paint'; });
+// Eraser/Paint toggle - PERBAIKAN FUNGSI PAINT
+eraserBtn.addEventListener('click', ()=>{ 
+  eraserMode = !eraserMode; 
+  eraserBtn.style.background = eraserMode ? '#111' : '#0b66ff'; 
+  eraserBtn.textContent = eraserMode ? 'Eraser' : 'Paint'; 
+});
 
 // pointer tracking (multi-touch safe)
 c.addEventListener('pointerdown', e=>{
@@ -711,7 +783,7 @@ c.addEventListener('pointercancel', e=>{
   isErasing = false; dragging=false; lastPointerId=null;
 });
 
-// Brush drawing onto eraseMask (destination-out)
+// Brush drawing onto eraseMask - PERBAIKAN UNTUK PAINT
 function doBrushStroke(clientX,clientY){
   if(!eraseMaskCtx) return;
   if(activePointers.size > 1) return;
@@ -722,13 +794,37 @@ function doBrushStroke(clientX,clientY){
 
   const b = document.createElement('canvas'); const bs=Math.max(8,Math.ceil(size)); b.width=bs; b.height=bs; const bctx=b.getContext('2d');
   const g = bctx.createRadialGradient(bs/2,bs/2,0,bs/2,bs/2,bs/2);
-  g.addColorStop(0,'rgba(0,0,0,1)');
-  const stop = Math.max(0, Math.min(1, hardness));
-  g.addColorStop(stop,'rgba(0,0,0,1)'); g.addColorStop(1,'rgba(0,0,0,0)');
-  bctx.clearRect(0,0,bs,bs); bctx.fillStyle=g; bctx.fillRect(0,0,bs,bs);
+  
+  // Perbedaan brush untuk eraser vs paint
+  if (eraserMode) {
+    // Eraser: transparan di tengah, transparan di tepi (menghapus)
+    g.addColorStop(0,'rgba(0,0,0,1)');
+    const stop = Math.max(0, Math.min(1, hardness));
+    g.addColorStop(stop,'rgba(0,0,0,1)'); 
+    g.addColorStop(1,'rgba(0,0,0,0)');
+  } else {
+    // Paint: putih di tengah, transparan di tepi (mengembalikan)
+    g.addColorStop(0,'rgba(255,255,255,1)');
+    const stop = Math.max(0, Math.min(1, hardness));
+    g.addColorStop(stop,'rgba(255,255,255,1)'); 
+    g.addColorStop(1,'rgba(255,255,255,0)');
+  }
+  
+  bctx.clearRect(0,0,bs,bs); 
+  bctx.fillStyle=g; 
+  bctx.fillRect(0,0,bs,bs);
 
   eraseMaskCtx.save();
-  eraseMaskCtx.globalCompositeOperation = 'destination-out';
+  
+  // Perbedaan composite operation untuk eraser vs paint
+  if (eraserMode) {
+    // Eraser: menghilangkan bagian mask (membuat transparan)
+    eraseMaskCtx.globalCompositeOperation = 'destination-out';
+  } else {
+    // Paint: menambahkan bagian mask (membuat opaque)
+    eraseMaskCtx.globalCompositeOperation = 'source-over';
+  }
+  
   eraseMaskCtx.drawImage(b, x - bs/2, y - bs/2, bs, bs);
   eraseMaskCtx.globalCompositeOperation = 'source-over';
   eraseMaskCtx.restore();
