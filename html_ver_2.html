@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Mockup Ringkas - Panel Kontrol Bawah</title>
+<title>Mockup Ringkas - Panel Kontrol Bawah (Fungsional)</title>
 <style>
 :root {
   --accent: #0b66ff;
@@ -180,6 +180,11 @@ button.secondary {
 
 .hidden {
   display: none;
+}
+
+.small {
+  font-size: 12px;
+  color: #666;
 }
 </style>
 </head>
@@ -365,215 +370,389 @@ document.querySelectorAll('.tool-icon').forEach(icon => {
   });
 });
 
-// Inisialisasi canvas
+// Kode JavaScript dari file asli (dengan penyesuaian untuk struktur baru)
 const c = document.getElementById('c');
 const ctx = c.getContext('2d');
 
-// Variabel global
-let shirtImg = null;
-let patternImg = null;
-let patternState = { 
-  x: c.width/2, 
-  y: c.height/2, 
-  scale: 1, 
-  rot: 0, 
-  alpha: 1, 
-  tiled: false 
-};
+let shirtImg = null, patternImg = null, maskCanvas = null, lumMap = null;
+let patternState = { x: c.width/2, y: c.height/2, scale:1, rot:0, alpha:1, tiled:false };
 
-// Fungsi untuk menggambar background checkerboard
-function drawCheckerBackground(context, w, h) {
-  const size = 16;
-  for(let y = 0; y < h; y += size) {
-    for(let x = 0; x < w; x += size) {
-      const even = ((x/size) + (y/size)) % 2 === 0;
-      context.fillStyle = even ? '#f8f8f8' : '#efefef';
-      context.fillRect(x, y, size, size);
-    }
+// erase mask
+const eraseMask = document.createElement('canvas');
+let eraseMaskCtx = eraseMask.getContext('2d');
+const undoStack = [];
+const UNDO_LIMIT = 20;
+
+// pointer tracking for multi-touch detection
+const activePointers = new Set();
+
+let eraserMode = true;
+let isErasing = false;
+let dragging = false;
+let dragOffset = {x:0,y:0};
+let lastPointerId = null;
+
+// UI refs
+const shirtFile = document.getElementById('shirtFile');
+const patternFile = document.getElementById('patternFile');
+const posX = document.getElementById('posX');
+const posY = document.getElementById('posY');
+const scaleEl = document.getElementById('scale');
+const rotationEl = document.getElementById('rotation');
+const opacityEl = document.getElementById('opacity');
+const centerBtn = document.getElementById('centerBtn');
+const tileBtn = document.getElementById('tileBtn');
+const displaceToggle = document.getElementById('displaceToggle');
+const displaceStrength = document.getElementById('displaceStrength');
+const downloadBtn = document.getElementById('downloadBtn');
+const resetBtn = document.getElementById('resetBtn');
+
+const eraserBtn = document.getElementById('eraserBtn');
+const brushSizeEl = document.getElementById('brushSize');
+const brushHardEl = document.getElementById('brushHard');
+const undoBtn = document.getElementById('undoBtn');
+const resetEraseBtn = document.getElementById('resetEraseBtn');
+
+// initialize undo button disabled
+undoBtn.disabled = true;
+
+// helpers
+function ensureEraseMaskSize(w,h){
+  if(eraseMask.width !== w || eraseMask.height !== h){
+    eraseMask.width = w; eraseMask.height = h;
+    eraseMaskCtx = eraseMask.getContext('2d');
+    eraseMaskCtx.clearRect(0,0,w,h);
+    eraseMaskCtx.fillStyle = 'white';
+    eraseMaskCtx.fillRect(0,0,w,h);
+    undoStack.length = 0;
+    undoBtn.disabled = true;
   }
 }
 
-// Gambar background checkerboard
-drawCheckerBackground(ctx, c.width, c.height);
-
-// Tambahkan teks placeholder
-ctx.fillStyle = '#666';
-ctx.font = '16px system-ui';
-ctx.textAlign = 'center';
-ctx.fillText('Upload baju dan motif untuk memulai', c.width/2, c.height/2);
-
-// Event listener untuk file upload
-document.getElementById('shirtFile').addEventListener('change', function(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = function(event) {
-    shirtImg = new Image();
-    shirtImg.onload = function() {
-      // Sesuaikan ukuran canvas dengan gambar baju
-      const maxWidth = 900;
-      const maxHeight = 1100;
-      const ratio = Math.min(maxWidth / shirtImg.width, maxHeight / shirtImg.height, 1);
-      c.width = Math.round(shirtImg.width * ratio);
-      c.height = Math.round(shirtImg.height * ratio);
-      
-      // Gambar ulang
-      drawCheckerBackground(ctx, c.width, c.height);
-      ctx.drawImage(shirtImg, 0, 0, c.width, c.height);
-      
-      // Reset posisi pattern jika ada
-      if (patternImg) {
-        patternState.x = c.width/2;
-        patternState.y = c.height/2;
-      }
-    };
-    shirtImg.src = event.target.result;
+function loadImageFromFile(file, cb){
+  const r = new FileReader();
+  r.onload = e=>{
+    const img = new Image();
+    img.onload = ()=>cb(img);
+    img.src = e.target.result;
   };
-  reader.readAsDataURL(file);
-});
+  r.readAsDataURL(file);
+}
 
-document.getElementById('patternFile').addEventListener('change', function(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = function(event) {
-    patternImg = new Image();
-    patternImg.onload = function() {
-      // Gambar pattern di atas baju
-      if (shirtImg) {
-        ctx.drawImage(shirtImg, 0, 0, c.width, c.height);
-      } else {
-        drawCheckerBackground(ctx, c.width, c.height);
-      }
-      
-      // Gambar pattern dengan pengaturan default
-      ctx.save();
-      ctx.translate(patternState.x, patternState.y);
-      ctx.rotate(patternState.rot * Math.PI / 180);
-      ctx.scale(patternState.scale, patternState.scale);
-      ctx.globalAlpha = patternState.alpha;
-      
-      const patternWidth = patternImg.width * 0.6;
-      const patternHeight = patternImg.height * 0.6;
-      ctx.drawImage(patternImg, -patternWidth/2, -patternHeight/2, patternWidth, patternHeight);
-      
-      ctx.restore();
-    };
-    patternImg.src = event.target.result;
-  };
-  reader.readAsDataURL(file);
-});
-
-// Event listener untuk slider transformasi
-['posX', 'posY', 'scale', 'rotation', 'opacity'].forEach(id => {
-  document.getElementById(id).addEventListener('input', function() {
-    if (!patternImg) return;
-    
-    patternState.x = Number(document.getElementById('posX').value);
-    patternState.y = Number(document.getElementById('posY').value);
-    patternState.scale = Number(document.getElementById('scale').value);
-    patternState.rot = Number(document.getElementById('rotation').value);
-    patternState.alpha = Number(document.getElementById('opacity').value);
-    
-    // Gambar ulang
-    if (shirtImg) {
-      ctx.drawImage(shirtImg, 0, 0, c.width, c.height);
-    } else {
-      drawCheckerBackground(ctx, c.width, c.height);
-    }
-    
-    ctx.save();
-    ctx.translate(patternState.x, patternState.y);
-    ctx.rotate(patternState.rot * Math.PI / 180);
-    ctx.scale(patternState.scale, patternState.scale);
-    ctx.globalAlpha = patternState.alpha;
-    
-    const patternWidth = patternImg.width * 0.6;
-    const patternHeight = patternImg.height * 0.6;
-    ctx.drawImage(patternImg, -patternWidth/2, -patternHeight/2, patternWidth, patternHeight);
-    
-    ctx.restore();
+// file events
+shirtFile.addEventListener('change', e=>{
+  const f = e.target.files[0]; if(!f) return;
+  loadImageFromFile(f, img=>{
+    shirtImg = img;
+    fitCanvasToShirt();
+    generateMaskFromShirt();
+    computeLuminanceMap();
+    ensureEraseMaskSize(c.width, c.height);
+    draw();
   });
 });
 
-// Event listener untuk tombol +/- 
-document.querySelectorAll('.step').forEach(btn => {
-  btn.addEventListener('click', function() {
-    const targetId = this.getAttribute('data-target');
-    const step = Number(this.getAttribute('data-step'));
-    const target = document.getElementById(targetId);
-    
-    if (target) {
-      let value = Number(target.value);
-      value += step;
-      
-      // Pastikan nilai dalam range
-      if (target.min) value = Math.max(Number(target.min), value);
-      if (target.max) value = Math.min(Number(target.max), value);
-      
-      target.value = value;
-      target.dispatchEvent(new Event('input'));
-    }
+patternFile.addEventListener('change', e=>{
+  const f = e.target.files[0]; if(!f) return;
+  loadImageFromFile(f, img=>{
+    patternImg = img;
+    patternState.x = c.width/2; patternState.y = c.height/2; patternState.scale = 1; patternState.rot = 0; patternState.alpha = 1; patternState.tiled = false;
+    syncUI();
+    ensureEraseMaskSize(c.width, c.height);
+    draw();
   });
 });
 
-// Event listener untuk tombol center
-document.getElementById('centerBtn').addEventListener('click', function() {
-  if (!patternImg) return;
-  
-  patternState.x = c.width/2;
-  patternState.y = c.height/2;
-  
-  document.getElementById('posX').value = patternState.x;
-  document.getElementById('posY').value = patternState.y;
-  
-  // Trigger input event untuk menggambar ulang
-  document.getElementById('posX').dispatchEvent(new Event('input'));
+// fit canvas to shirt
+function fitCanvasToShirt(){
+  if(!shirtImg) return;
+  const maxW=1400, maxH=1700;
+  let w = shirtImg.naturalWidth || shirtImg.width;
+  let h = shirtImg.naturalHeight || shirtImg.height;
+  const ratio = Math.min(maxW / w, maxH / h, 1);
+  c.width = Math.round(w * ratio);
+  c.height = Math.round(h * ratio);
+  ensureEraseMaskSize(c.width, c.height);
+  if(!patternImg){ patternState.x = c.width/2; patternState.y = c.height/2; }
+  syncUI();
+}
+
+// mask from shirt alpha
+function generateMaskFromShirt(){
+  if(!shirtImg){ maskCanvas = null; return; }
+  const tmp = document.createElement('canvas'); tmp.width=c.width; tmp.height=c.height;
+  const tctx = tmp.getContext('2d'); tctx.clearRect(0,0,tmp.width,tmp.height);
+  tctx.drawImage(shirtImg,0,0,tmp.width,tmp.height);
+  const id = tctx.getImageData(0,0,tmp.width,tmp.height).data;
+  const mask = document.createElement('canvas'); mask.width=tmp.width; mask.height=tmp.height;
+  const mctx = mask.getContext('2d'), mImg = mctx.createImageData(tmp.width,tmp.height);
+  const mData = mImg.data;
+  const TH = 10;
+  for(let i=0;i<id.length;i+=4){
+    const a = id[i+3];
+    if(a>TH){ mData[i]=255; mData[i+1]=255; mData[i+2]=255; mData[i+3]=255; } else { mData[i]=0; mData[i+1]=0; mData[i+2]=0; mData[i+3]=0; }
+  }
+  mctx.putImageData(mImg,0,0);
+  maskCanvas = mask;
+}
+
+// luminance map
+function computeLuminanceMap(){
+  if(!shirtImg){ lumMap=null; return; }
+  const tmp = document.createElement('canvas'); tmp.width=c.width; tmp.height=c.height;
+  const tctx = tmp.getContext('2d'); tctx.drawImage(shirtImg,0,0,tmp.width,tmp.height);
+  const id = tctx.getImageData(0,0,tmp.width,tmp.height).data;
+  lumMap = new Float32Array(tmp.width*tmp.height);
+  for(let i=0,j=0;i<id.length;i+=4,j++){ lumMap[j] = (0.2126*id[i] + 0.7152*id[i+1] + 0.0722*id[i+2]) / 255; }
+  lumMap = boxBlurFloat(lumMap, tmp.width, tmp.height, 2);
+}
+function boxBlurFloat(arr,w,h,radius){ if(radius<1) return arr; const tmp=new Float32Array(arr.length); for(let y=0;y<h;y++) for(let x=0;x<w;x++){ let sum=0,cnt=0; for(let k=-radius;k<=radius;k++){ const xx=x+k; if(xx>=0 && xx<w){ sum+=arr[y*w+xx]; cnt++; } } tmp[y*w+x]=sum/cnt; } const out=new Float32Array(arr.length); for(let x=0;x<w;x++) for(let y=0;y<h;y++){ let sum=0,cnt=0; for(let k=-radius;k<=radius;k++){ const yy=y+k; if(yy>=0 && yy<h){ sum+=tmp[yy*w+x]; cnt++; } } out[y*w+x]=sum/cnt; } return out; }
+
+// drawing pipeline
+function draw(){
+  ctx.clearRect(0,0,c.width,c.height);
+  if(shirtImg) ctx.drawImage(shirtImg,0,0,c.width,c.height); else drawCheckerBackground(ctx,c.width,c.height);
+  if(!patternImg){ return; }
+
+  const pw=c.width, ph=c.height;
+  const patternCanvas=document.createElement('canvas'); patternCanvas.width=pw; patternCanvas.height=ph;
+  const pctx=patternCanvas.getContext('2d'); pctx.clearRect(0,0,pw,ph);
+  pctx.save(); pctx.translate(patternState.x,patternState.y); pctx.rotate(patternState.rot*Math.PI/180); pctx.scale(patternState.scale,patternState.scale);
+  if(patternState.tiled){ const patt=pctx.createPattern(patternImg,'repeat'); pctx.fillStyle=patt; const fillW=pw*(1/patternState.scale)+1000; const fillH=ph*(1/patternState.scale)+1000; pctx.fillRect(-fillW/2,-fillH/2,fillW,fillH); }
+  else { const w=patternImg.naturalWidth||patternImg.width; const h=patternImg.naturalHeight||patternImg.height; const defaultScale=Math.min((pw*0.6)/w,(ph*0.6)/h); const drawW=w*defaultScale; const drawH=h*defaultScale; pctx.drawImage(patternImg,-drawW/2,-drawH/2,drawW,drawH); }
+  pctx.restore();
+
+  // if no displacement or no lumMap -> apply eraseMask & shirt mask then draw
+  if(!displaceToggle.checked || !lumMap){
+    const temp=document.createElement('canvas'); temp.width=pw; temp.height=ph; const tctx=temp.getContext('2d');
+    tctx.drawImage(pctx.canvas,0,0);
+    if(eraseMask.width && eraseMask.height){ tctx.globalCompositeOperation='destination-in'; tctx.drawImage(eraseMask,0,0); tctx.globalCompositeOperation='source-over'; }
+    if(maskCanvas){ tctx.globalCompositeOperation='destination-in'; tctx.drawImage(maskCanvas,0,0); tctx.globalCompositeOperation='source-over'; }
+    ctx.globalAlpha = patternState.alpha; ctx.globalCompositeOperation='multiply'; ctx.drawImage(temp,0,0); ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1;
+    return;
+  }
+
+  // displacement path
+  const pData = pctx.getImageData(0,0,pw,ph).data;
+  const displaced=document.createElement('canvas'); displaced.width=pw; displaced.height=ph; const dctx=displaced.getContext('2d');
+  const out=dctx.createImageData(pw,ph); const outData=out.data; const strength=Number(displaceStrength.value);
+  const gx=new Float32Array(pw*ph), gy=new Float32Array(pw*ph);
+  for(let y=0;y<ph;y++) for(let x=0;x<pw;x++){ const i=y*pw+x; const left=x>0?lumMap[i-1]:lumMap[i]; const right=x<pw-1?lumMap[i+1]:lumMap[i]; const top=y>0?lumMap[i-pw]:lumMap[i]; const bottom=y<ph-1?lumMap[i+pw]:lumMap[i]; gx[i]=right-left; gy[i]=bottom-top; }
+  for(let y=0;y<ph;y++) for(let x=0;x<pw;x++){ const i=y*pw+x; const dx=-gx[i]*(strength/50); const dy=-gy[i]*(strength/50); let sx=Math.round(x+dx), sy=Math.round(y+dy); if(sx<0) sx=0; if(sx>=pw) sx=pw-1; if(sy<0) sy=0; if(sy>=ph) sy=ph-1; const si=(sy*pw+sx)*4, oi=i*4; outData[oi]=pData[si]; outData[oi+1]=pData[si+1]; outData[oi+2]=pData[si+2]; outData[oi+3]=pData[si+3]; }
+  dctx.putImageData(out,0,0);
+
+  // apply eraseMask + shirt mask
+  const temp2=document.createElement('canvas'); temp2.width=pw; temp2.height=ph; const t2=temp2.getContext('2d');
+  t2.drawImage(displaced,0,0);
+  if(eraseMask.width && eraseMask.height){ t2.globalCompositeOperation='destination-in'; t2.drawImage(eraseMask,0,0); t2.globalCompositeOperation='source-over'; }
+  if(maskCanvas){ t2.globalCompositeOperation='destination-in'; t2.drawImage(maskCanvas,0,0); t2.globalCompositeOperation='source-over'; }
+  ctx.globalAlpha=patternState.alpha; ctx.globalCompositeOperation='multiply'; ctx.drawImage(temp2,0,0); ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1;
+}
+
+function drawCheckerBackground(context,w,h){ const size=16; for(let y=0;y<h;y+=size) for(let x=0;x<w;x+=size){ const even=((x/size)+(y/size))%2===0; context.fillStyle=even?'#f8f8f8':'#efefef'; context.fillRect(x,y,size,size); } }
+function syncUI(){ posX.value=Math.round(patternState.x); posY.value=Math.round(patternState.y); scaleEl.value=patternState.scale; rotationEl.value=patternState.rot; opacityEl.value=patternState.alpha; }
+
+// ERASER: push undo, undo, reset
+function pushUndo(){ try{ const data = eraseMaskCtx.getImageData(0,0,eraseMask.width,eraseMask.height); undoStack.push(data); if(undoStack.length>UNDO_LIMIT) undoStack.shift(); undoBtn.disabled=false; }catch(e){} }
+function undoErase(){ if(undoStack.length===0) return; const img = undoStack.pop(); eraseMaskCtx.putImageData(img,0,0); if(undoStack.length===0) undoBtn.disabled=true; draw(); }
+undoBtn.addEventListener('click', undoErase);
+resetEraseBtn.addEventListener('click', ()=>{ pushUndo(); eraseMaskCtx.clearRect(0,0,eraseMask.width,eraseMask.height); eraseMaskCtx.fillStyle='white'; eraseMaskCtx.fillRect(0,0,eraseMask.width,eraseMask.height); draw(); });
+
+// Eraser toggle
+eraserBtn.addEventListener('click', ()=>{ eraserMode = !eraserMode; eraserBtn.style.background = eraserMode ? '#111' : '#666'; eraserBtn.textContent = eraserMode ? 'Eraser' : 'Paint'; });
+
+// pointer tracking (multi-touch safe)
+// Track pointerdown/up to identify number of active pointers. If >1, disable erasing actions.
+c.addEventListener('pointerdown', e=>{
+  activePointers.add(e.pointerId);
+  // if multi-touch active, don't start erasing (allow pinch-zoom native)
+  if(activePointers.size > 1){
+    // if currently capturing, release
+    isErasing = false;
+    dragging = false;
+    lastPointerId = null;
+    // still allow pointer capture for pinch? do not capture to keep native pinch behaviour
+    return;
+  }
+
+  // single touch: decide whether to start drag or eraser/paint
+  const rect=c.getBoundingClientRect(); const x=e.clientX-rect.left, y=e.clientY-rect.top;
+  if(!eraserMode && patternImg){
+    // hit test for drag
+    const w = (patternImg.naturalWidth||patternImg.width) * Math.min((c.width*0.6)/(patternImg.naturalWidth||patternImg.width),(c.height*0.6)/(patternImg.naturalHeight||patternImg.height)) * patternState.scale;
+    const h = (patternImg.naturalHeight||patternImg.height) * Math.min((c.width*0.6)/(patternImg.naturalWidth||patternImg.width),(c.height*0.6)/(patternImg.naturalHeight||patternImg.height)) * patternState.scale;
+    const dx=x-patternState.x, dy=y-patternState.y; const theta=-patternState.rot*Math.PI/180;
+    const rx = dx*Math.cos(theta)-dy*Math.sin(theta), ry = dx*Math.sin(theta)+dy*Math.cos(theta);
+    if(Math.abs(rx) <= w/2+20 && Math.abs(ry) <= h/2+20){ dragging=true; dragOffset.x=dx; dragOffset.y=dy; c.setPointerCapture(e.pointerId); lastPointerId=e.pointerId; return; }
+  }
+
+  // Start erasing/painting if eraserMode OR (paint mode) -> we allow paint to write back? For now both modes use same brush but destination-out will erase.
+  // ensure eraseMask size
+  ensureEraseMaskSize(c.width,c.height);
+  pushUndo();
+  isErasing = true;
+  lastPointerId = e.pointerId;
+  // capture pointer to keep receiving move/up
+  try{ c.setPointerCapture(e.pointerId); }catch(_){} 
+  doBrushStroke(e.clientX,e.clientY);
 });
 
-// Event listener untuk tombol download
-document.getElementById('downloadBtn').addEventListener('click', function() {
-  if (!shirtImg && !patternImg) return;
-  
-  const link = document.createElement('a');
-  link.download = 'mockup.png';
-  link.href = c.toDataURL('image/png');
-  link.click();
+c.addEventListener('pointermove', e=>{
+  // keep active pointer set updated
+  if(!activePointers.has(e.pointerId)) activePointers.add(e.pointerId);
+
+  // if multi-touch, ignore erasing moves
+  if(activePointers.size > 1){ return; }
+
+  if(dragging && !eraserMode){
+    const rect=c.getBoundingClientRect(); const x=e.clientX-rect.left, y=e.clientY-rect.top;
+    patternState.x = x - dragOffset.x; patternState.y = y - dragOffset.y;
+    syncUI(); draw(); return;
+  }
+
+  if(!isErasing || lastPointerId !== e.pointerId) return;
+  doBrushStroke(e.clientX,e.clientY);
 });
 
-// Event listener untuk tombol reset
-document.getElementById('resetBtn').addEventListener('click', function() {
-  shirtImg = null;
-  patternImg = null;
-  patternState = { 
-    x: c.width/2, 
-    y: c.height/2, 
-    scale: 1, 
-    rot: 0, 
-    alpha: 1, 
-    tiled: false 
-  };
-  
-  // Reset nilai slider
-  document.getElementById('posX').value = patternState.x;
-  document.getElementById('posY').value = patternState.y;
-  document.getElementById('scale').value = patternState.scale;
-  document.getElementById('rotation').value = patternState.rot;
-  document.getElementById('opacity').value = patternState.alpha;
-  
-  // Reset file inputs
-  document.getElementById('shirtFile').value = '';
-  document.getElementById('patternFile').value = '';
-  
-  // Gambar ulang canvas
-  drawCheckerBackground(ctx, c.width, c.height);
-  ctx.fillStyle = '#666';
-  ctx.font = '16px system-ui';
-  ctx.textAlign = 'center';
-  ctx.fillText('Upload baju dan motif untuk memulai', c.width/2, c.height/2);
+c.addEventListener('pointerup', e=>{
+  // remove pointer from set
+  activePointers.delete(e.pointerId);
+
+  if(lastPointerId === e.pointerId){
+    isErasing = false;
+    dragging = false;
+    try{ c.releasePointerCapture(e.pointerId); }catch(_){} 
+    lastPointerId = null;
+  }
 });
+c.addEventListener('pointercancel', e=>{
+  activePointers.delete(e.pointerId);
+  isErasing = false; dragging=false; lastPointerId=null;
+});
+
+// Brush drawing onto eraseMask (destination-out)
+function doBrushStroke(clientX,clientY){
+  if(!eraseMaskCtx) return;
+  // if multi-touch came in meanwhile, skip
+  if(activePointers.size > 1) return;
+
+  const rect=c.getBoundingClientRect(); const x=clientX-rect.left, y=clientY-rect.top;
+  const size = Number(brushSizeEl.value);
+  const hardness = Number(brushHardEl.value);
+
+  const b = document.createElement('canvas'); const bs=Math.max(8,Math.ceil(size)); b.width=bs; b.height=bs; const bctx=b.getContext('2d');
+  const g = bctx.createRadialGradient(bs/2,bs/2,0,bs/2,bs/2,bs/2);
+  g.addColorStop(0,'rgba(0,0,0,1)');
+  const stop = Math.max(0, Math.min(1, hardness));
+  g.addColorStop(stop,'rgba(0,0,0,1)'); g.addColorStop(1,'rgba(0,0,0,0)');
+  bctx.clearRect(0,0,bs,bs); bctx.fillStyle=g; bctx.fillRect(0,0,bs,bs);
+
+  eraseMaskCtx.save();
+  // destination-out -> remove from mask (make transparent)
+  eraseMaskCtx.globalCompositeOperation = 'destination-out';
+  eraseMaskCtx.drawImage(b, x - bs/2, y - bs/2, bs, bs);
+  eraseMaskCtx.globalCompositeOperation = 'source-over';
+  eraseMaskCtx.restore();
+
+  draw();
+}
+
+// slider listeners (also update patternState)
+[posX,posY,scaleEl,rotationEl,opacityEl,displaceStrength].forEach(el=>{
+  el.addEventListener('input', ()=>{
+    patternState.x = Number(posX.value);
+    patternState.y = Number(posY.value);
+    patternState.scale = Number(scaleEl.value);
+    patternState.rot = Number(rotationEl.value);
+    patternState.alpha = Number(opacityEl.value);
+    draw();
+  });
+});
+
+// +/- step buttons
+document.querySelectorAll('.step').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const targetId = btn.dataset.target;
+    const step = Number(btn.dataset.step);
+    const el = document.getElementById(targetId);
+    if(!el) return;
+    let val = Number(el.value);
+    val = val + step;
+    // clamp within min/max if present
+    if(el.min !== undefined && el.min !== '') val = Math.max(Number(el.min), val);
+    if(el.max !== undefined && el.max !== '') val = Math.min(Number(el.max), val);
+    el.value = val;
+    el.dispatchEvent(new Event('input'));
+  });
+});
+
+// center/tile/reset
+centerBtn.addEventListener('click', ()=>{ patternState.x = c.width/2; patternState.y = c.height/2; syncUI(); draw(); });
+tileBtn.addEventListener('click', ()=>{ patternState.tiled = !patternState.tiled; tileBtn.textContent = patternState.tiled ? 'Tile: ON' : 'Toggle Tile'; draw(); });
+resetBtn.addEventListener('click', ()=>{ 
+  shirtImg=null; 
+  patternImg=null; 
+  maskCanvas=null; 
+  lumMap=null; 
+  patternState={x:c.width/2,y:c.height/2,scale:1,rot:0,alpha:1,tiled:false}; 
+  eraseMaskCtx.clearRect(0,0,eraseMask.width,eraseMask.height); 
+  eraseMaskCtx.fillStyle='white'; 
+  eraseMaskCtx.fillRect(0,0,eraseMask.width,eraseMask.height); 
+  undoStack.length=0; 
+  undoBtn.disabled=true; 
+  document.getElementById('shirtFile').value=''; 
+  document.getElementById('patternFile').value=''; 
+  syncUI(); 
+  draw(); 
+});
+
+// download logic
+downloadBtn.addEventListener('click', ()=>{
+  if(!shirtImg && !patternImg) return;
+  const scaleFactor = 2; const tmp=document.createElement('canvas'); tmp.width=c.width*scaleFactor; tmp.height=c.height*scaleFactor;
+  const tctx=tmp.getContext('2d');
+  if(shirtImg) tctx.drawImage(shirtImg,0,0,tmp.width,tmp.height); else drawCheckerBackground(tctx,tmp.width,tmp.height);
+
+  // build high-res pattern
+  const pCanvas=document.createElement('canvas'); pCanvas.width=tmp.width; pCanvas.height=tmp.height; const pctx=pCanvas.getContext('2d');
+  pctx.save(); pctx.translate(patternState.x*scaleFactor, patternState.y*scaleFactor); pctx.rotate(patternState.rot*Math.PI/180); pctx.scale(patternState.scale, patternState.scale);
+  if(patternState.tiled){ const patt=pctx.createPattern(patternImg,'repeat'); pctx.fillStyle=patt; pctx.fillRect(-pCanvas.width,-pCanvas.height,pCanvas.width*2,pCanvas.height*2); }
+  else { const w=patternImg.naturalWidth||patternImg.width; const h=patternImg.naturalHeight||patternImg.height; const defaultScale=Math.min((pCanvas.width*0.6)/w,(pCanvas.height*0.6)/h); const drawW=w*defaultScale; const drawH=h*defaultScale; pctx.drawImage(patternImg,-drawW/2,-drawH/2,drawW,drawH); }
+  pctx.restore();
+
+  if(!displaceToggle.checked || !lumMap){
+    const eScaled=document.createElement('canvas'); eScaled.width=tmp.width; eScaled.height=tmp.height; const ectx=eScaled.getContext('2d'); ectx.drawImage(eraseMask,0,0,tmp.width,tmp.height);
+    const temp=document.createElement('canvas'); temp.width=tmp.width; temp.height=tmp.height; const tt=temp.getContext('2d'); tt.drawImage(pCanvas,0,0); tt.globalCompositeOperation='destination-in'; tt.drawImage(eScaled,0,0); tt.globalCompositeOperation='source-over';
+    if(maskCanvas){ const mScaled=document.createElement('canvas'); mScaled.width=tmp.width; mScaled.height=tmp.height; const mctx=mScaled.getContext('2d'); mctx.drawImage(maskCanvas,0,0,tmp.width,tmp.height); tt.globalCompositeOperation='destination-in'; tt.drawImage(mScaled,0,0); tt.globalCompositeOperation='source-over'; }
+    tctx.globalAlpha = patternState.alpha; tctx.globalCompositeOperation='multiply'; tctx.drawImage(temp,0,0); tctx.globalCompositeOperation='source-over'; tctx.globalAlpha=1;
+    const link=document.createElement('a'); link.download='mockup.png'; link.href=tmp.toDataURL('image/png'); link.click(); return;
+  }
+
+  // displacement high-res
+  const scaledLum = scaleLumMap(lumMap, c.width, c.height, tmp.width, tmp.height);
+  const pw=pCanvas.width, ph=pCanvas.height; const pDataHR=pctx.getImageData(0,0,pw,ph).data;
+  const displacedHR=document.createElement('canvas'); displacedHR.width=pw; displacedHR.height=ph; const dctxHR=displacedHR.getContext('2d'); const outHR=dctxHR.createImageData(pw,ph);
+  const outDataHR=outHR.data; const strength=Number(displaceStrength.value);
+  const gx=new Float32Array(pw*ph), gy=new Float32Array(pw*ph);
+  for(let y=0;y<ph;y++) for(let x=0;x<pw;x++){ const i=y*pw+x; const left = x>0?scaledLum[i-1]:scaledLum[i]; const right = x<pw-1?scaledLum[i+1]:scaledLum[i]; const top = y>0?scaledLum[i-pw]:scaledLum[i]; const bottom = y<ph-1?scaledLum[i+pw]:scaledLum[i]; gx[i]=right-left; gy[i]=bottom-top; }
+  for(let y=0;y<ph;y++) for(let x=0;x<pw;x++){ const i=y*pw+x; const dx=-gx[i]*(strength/50); const dy=-gy[i]*(strength/50); let sx=Math.round(x+dx), sy=Math.round(y+dy); if(sx<0) sx=0; if(sx>=pw) sx=pw-1; if(sy<0) sy=0; if(sy>=ph) sy=ph-1; const si=(sy*pw+sx)*4, oi=i*4; outDataHR[oi]=pDataHR[si]; outDataHR[oi+1]=pDataHR[si+1]; outDataHR[oi+2]=pDataHR[si+2]; outDataHR[oi+3]=pDataHR[si+3]; }
+  dctxHR.putImageData(outHR,0,0);
+
+  // apply erase mask scaled & shirt mask scaled
+  const eScaled=document.createElement('canvas'); eScaled.width=tmp.width; eScaled.height=tmp.height; const ectx=eScaled.getContext('2d'); ectx.drawImage(eraseMask,0,0,tmp.width,tmp.height);
+  const mScaled=document.createElement('canvas'); mScaled.width=tmp.width; mScaled.height=tmp.height; const mctx=mScaled.getContext('2d'); if(maskCanvas) mctx.drawImage(maskCanvas,0,0,tmp.width,tmp.height);
+  const temp2=document.createElement('canvas'); temp2.width=tmp.width; temp2.height=tmp.height; const tt=temp2.getContext('2d');
+  tt.drawImage(displacedHR,0,0,tmp.width,tmp.height); tt.globalCompositeOperation='destination-in'; tt.drawImage(eScaled,0,0); tt.globalCompositeOperation='source-over'; if(maskCanvas){ tt.globalCompositeOperation='destination-in'; tt.drawImage(mScaled,0,0); tt.globalCompositeOperation='source-over'; }
+  tctx.globalAlpha=patternState.alpha; tctx.globalCompositeOperation='multiply'; tctx.drawImage(temp2,0,0); tctx.globalCompositeOperation='source-over'; tctx.globalAlpha=1;
+  const link=document.createElement('a'); link.download='mockup.png'; link.href=tmp.toDataURL('image/png'); link.click();
+});
+
+// helper scale lum map
+function scaleLumMap(src, sw, sh, tw, th){ if(!src) return null; const out=new Float32Array(tw*th); for(let y=0;y<th;y++) for(let x=0;x<tw;x++){ const sx=Math.floor(x*sw/tw), sy=Math.floor(y*sh/th); out[y*tw+x] = src[sy*sw + sx]; } return out; }
+
+function syncUI(){ posX.value=Math.round(patternState.x); posY.value=Math.round(patternState.y); scaleEl.value=patternState.scale; rotationEl.value=patternState.rot; opacityEl.value=patternState.alpha; }
+function init(){ ensureEraseMaskSize(c.width,c.height); syncUI(); draw(); }
+init();
 </script>
 </body>
 </html>
