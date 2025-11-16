@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Mockup Ringkas - Lembar Kerja dengan Kontrol Ikon</title>
+<title>Mockup Ringkas - Panel Kontrol Bawah</title>
 <style>
 :root {
   --accent: #0b66ff;
@@ -66,20 +66,10 @@ body {
   color: var(--accent);
 }
 
-.tuning-panel {
-  background: var(--panel-bg);
-  border-bottom: 1px solid var(--border-color);
-  padding: 12px 16px;
-  display: none;
-}
-
-.tuning-panel.active {
-  display: block;
-}
-
 .main-content {
   flex: 1;
   display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
@@ -99,6 +89,20 @@ canvas {
   box-shadow: 0 6px 18px rgba(0,0,0,.06);
   max-width: 100%;
   height: auto;
+}
+
+.control-panel {
+  background: var(--panel-bg);
+  border-top: 1px solid var(--border-color);
+  padding: 12px 16px;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.control-panel.active {
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .control-group {
@@ -173,12 +177,16 @@ button.secondary {
   border-top: 1px solid var(--border-color);
   text-align: center;
 }
+
+.hidden {
+  display: none;
+}
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h3 style="margin: 0; font-size: 16px;">Mockup Ringkas - Lembar Kerja</h3>
+  <h3 style="margin: 0; font-size: 16px;">Mockup Ringkas - Panel Kontrol Bawah</h3>
   <div style="display: flex; gap: 8px;">
     <button id="downloadBtn">Download PNG</button>
     <button id="resetBtn" class="secondary">Reset All</button>
@@ -203,175 +211,177 @@ button.secondary {
   </div>
 </div>
 
-<div id="undoRedoPanel" class="tuning-panel">
-  <div class="row">
-    <button id="undoBtn" style="background:#f39c12">↶ Undo</button>
-    <button id="redoBtn" style="background:#f39c12" disabled>↷ Redo</button>
-  </div>
-</div>
-
-<div id="uploadPanel" class="tuning-panel">
-  <div class="control-group">
-    <label>Upload Baju (PNG transparan)</label>
-    <input id="shirtFile" type="file" accept="image/*">
-  </div>
-  <div class="control-group">
-    <label>Upload Motif</label>
-    <input id="patternFile" type="file" accept="image/*">
-  </div>
-</div>
-
-<div id="transformPanel" class="tuning-panel">
-  <div class="control-group">
-    <label>Transform (gunakan +/- untuk presisi)</label>
-    
-    <div class="row">
-      <span style="width:56px">Pos X</span>
-      <button class="step" data-target="posX" data-step="-10">−</button>
-      <input id="posX" type="range" min="-2000" max="2000" value="450">
-      <button class="step" data-target="posX" data-step="10">+</button>
-    </div>
-
-    <div class="row">
-      <span style="width:56px">Pos Y</span>
-      <button class="step" data-target="posY" data-step="-10">−</button>
-      <input id="posY" type="range" min="-2000" max="2000" value="550">
-      <button class="step" data-target="posY" data-step="10">+</button>
-    </div>
-
-    <div class="row">
-      <span style="width:56px">Scale</span>
-      <button class="step" data-target="scale" data-step="-0.05">−</button>
-      <input id="scale" type="range" min="0.1" max="5" step="0.01" value="1">
-      <button class="step" data-target="scale" data-step="0.05">+</button>
-    </div>
-
-    <div class="row">
-      <span style="width:56px">Rot</span>
-      <button class="step" data-target="rotation" data-step="-1">−</button>
-      <input id="rotation" type="range" min="-180" max="180" value="0">
-      <button class="step" data-target="rotation" data-step="1">+</button>
-    </div>
-
-    <div class="row">
-      <span style="width:56px">Opacity</span>
-      <button class="step" data-target="opacity" data-step="-0.01">−</button>
-      <input id="opacity" type="range" min="0" max="1" step="0.01" value="1">
-      <button class="step" data-target="opacity" data-step="0.01">+</button>
-    </div>
-
-    <div class="controls-grid">
-      <div><button id="centerBtn" style="width:100%">Center</button></div>
-      <div><button id="tileBtn" style="width:100%">Toggle Tile</button></div>
-    </div>
-  </div>
-</div>
-
-<div id="displacePanel" class="tuning-panel">
-  <div class="control-group">
-    <label>Displacement</label>
-    <div class="row">
-      <div style="display:flex;align-items:center;gap:8px">
-        <input id="displaceToggle" type="checkbox">
-        <span style="font-size:13px">Aktifkan</span>
-      </div>
-      <div style="flex:1;display:flex;align-items:center;gap:8px">
-        <button class="step" data-target="displaceStrength" data-step="-1">−</button>
-        <input id="displaceStrength" type="range" min="0" max="120" value="18">
-        <button class="step" data-target="displaceStrength" data-step="1">+</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div id="eraserPanel" class="tuning-panel">
-  <div class="control-group">
-    <label>Eraser (Brush)</label>
-    <div class="row">
-      <button id="eraserBtn">Eraser</button>
-      <button id="resetEraseBtn" style="background:#e53e3e">Reset Erase</button>
-    </div>
-    
-    <div class="row">
-      <div class="badge">Size
-        <button class="step" data-target="brushSize" data-step="-4">−</button>
-        <input id="brushSize" type="range" min="4" max="200" value="40" style="width:100px">
-        <button class="step" data-target="brushSize" data-step="4">+</button>
-      </div>
-    </div>
-    
-    <div class="row">
-      <div class="badge">Hard
-        <button class="step" data-target="brushHard" data-step="-0.05">−</button>
-        <input id="brushHard" type="range" min="0" max="1" step="0.01" value="0.6" style="width:100px">
-        <button class="step" data-target="brushHard" data-step="0.05">+</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <div class="main-content">
   <div class="workspace">
     <canvas id="c" width="900" height="1100" aria-label="mockup canvas"></canvas>
   </div>
+  
+  <!-- Panel kontrol di bawah lembar kerja -->
+  <div id="undoRedoPanel" class="control-panel hidden">
+    <div class="control-group">
+      <label>Undo & Redo</label>
+      <div class="row">
+        <button id="undoBtn" style="background:#f39c12">↶ Undo</button>
+        <button id="redoBtn" style="background:#f39c12" disabled>↷ Redo</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="uploadPanel" class="control-panel hidden">
+    <div class="control-group">
+      <label>Upload Gambar</label>
+      <div class="row">
+        <input id="shirtFile" type="file" accept="image/*" style="flex:1">
+        <span style="font-size:12px; color:#666">Baju (PNG)</span>
+      </div>
+      <div class="row">
+        <input id="patternFile" type="file" accept="image/*" style="flex:1">
+        <span style="font-size:12px; color:#666">Motif</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="transformPanel" class="control-panel hidden">
+    <div class="control-group">
+      <label>Transformasi</label>
+      
+      <div class="row">
+        <span style="width:56px">Pos X</span>
+        <button class="step" data-target="posX" data-step="-10">−</button>
+        <input id="posX" type="range" min="-2000" max="2000" value="450">
+        <button class="step" data-target="posX" data-step="10">+</button>
+      </div>
+
+      <div class="row">
+        <span style="width:56px">Pos Y</span>
+        <button class="step" data-target="posY" data-step="-10">−</button>
+        <input id="posY" type="range" min="-2000" max="2000" value="550">
+        <button class="step" data-target="posY" data-step="10">+</button>
+      </div>
+
+      <div class="row">
+        <span style="width:56px">Scale</span>
+        <button class="step" data-target="scale" data-step="-0.05">−</button>
+        <input id="scale" type="range" min="0.1" max="5" step="0.01" value="1">
+        <button class="step" data-target="scale" data-step="0.05">+</button>
+      </div>
+
+      <div class="row">
+        <span style="width:56px">Rotasi</span>
+        <button class="step" data-target="rotation" data-step="-1">−</button>
+        <input id="rotation" type="range" min="-180" max="180" value="0">
+        <button class="step" data-target="rotation" data-step="1">+</button>
+      </div>
+
+      <div class="row">
+        <span style="width:56px">Opacity</span>
+        <button class="step" data-target="opacity" data-step="-0.01">−</button>
+        <input id="opacity" type="range" min="0" max="1" step="0.01" value="1">
+        <button class="step" data-target="opacity" data-step="0.01">+</button>
+      </div>
+
+      <div class="controls-grid">
+        <div><button id="centerBtn" style="width:100%">Center</button></div>
+        <div><button id="tileBtn" style="width:100%">Toggle Tile</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="displacePanel" class="control-panel hidden">
+    <div class="control-group">
+      <label>Displacement</label>
+      <div class="row">
+        <div style="display:flex;align-items:center;gap:8px">
+          <input id="displaceToggle" type="checkbox">
+          <span style="font-size:13px">Aktifkan</span>
+        </div>
+        <div style="flex:1;display:flex;align-items:center;gap:8px">
+          <button class="step" data-target="displaceStrength" data-step="-1">−</button>
+          <input id="displaceStrength" type="range" min="0" max="120" value="18">
+          <button class="step" data-target="displaceStrength" data-step="1">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="eraserPanel" class="control-panel hidden">
+    <div class="control-group">
+      <label>Eraser (Brush)</label>
+      <div class="row">
+        <button id="eraserBtn">Eraser</button>
+        <button id="resetEraseBtn" style="background:#e53e3e">Reset Erase</button>
+      </div>
+      
+      <div class="row">
+        <div class="badge">Size
+          <button class="step" data-target="brushSize" data-step="-4">−</button>
+          <input id="brushSize" type="range" min="4" max="200" value="40" style="width:100px">
+          <button class="step" data-target="brushSize" data-step="4">+</button>
+        </div>
+      </div>
+      
+      <div class="row">
+        <div class="badge">Hard
+          <button class="step" data-target="brushHard" data-step="-0.05">−</button>
+          <input id="brushHard" type="range" min="0" max="1" step="0.01" value="0.6" style="width:100px">
+          <button class="step" data-target="brushHard" data-step="0.05">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="footer">
-  Tip: pinch untuk zoom halaman. Eraser nonaktif jika lebih dari 1 sentuhan.
+  Tip: Pinch untuk zoom halaman. Eraser nonaktif jika lebih dari 1 sentuhan.
 </div>
 
 <script>
-// Kode JavaScript tetap sama seperti sebelumnya, hanya struktur HTML yang diubah
-// Untuk menghemat ruang, saya tidak menyalin seluruh kode JavaScript di sini
-// Namun dalam implementasi nyata, semua kode JavaScript dari file asli harus disertakan
-
-// Inisialisasi panel tuning
+// Inisialisasi panel kontrol
 document.querySelectorAll('.tool-icon').forEach(icon => {
   icon.addEventListener('click', function() {
     const panelId = this.getAttribute('data-panel');
     const panel = document.getElementById(panelId);
     
-    // Toggle active class pada ikon
-    this.classList.toggle('active');
-    
-    // Toggle tampilan panel
-    if (panel.style.display === 'block') {
-      panel.style.display = 'none';
+    // Jika panel yang sama diklik lagi, sembunyikan
+    if (this.classList.contains('active')) {
+      this.classList.remove('active');
       panel.classList.remove('active');
+      panel.classList.add('hidden');
     } else {
-      // Sembunyikan semua panel terlebih dahulu
-      document.querySelectorAll('.tuning-panel').forEach(p => {
-        p.style.display = 'none';
-        p.classList.remove('active');
-      });
-      
-      // Tampilkan panel yang dipilih
-      panel.style.display = 'block';
-      panel.classList.add('active');
-      
-      // Nonaktifkan semua ikon lainnya
+      // Nonaktifkan semua ikon dan sembunyikan semua panel
       document.querySelectorAll('.tool-icon').forEach(i => {
-        if (i !== this) i.classList.remove('active');
+        i.classList.remove('active');
       });
+      document.querySelectorAll('.control-panel').forEach(p => {
+        p.classList.remove('active');
+        p.classList.add('hidden');
+      });
+      
+      // Aktifkan ikon dan panel yang dipilih
+      this.classList.add('active');
+      panel.classList.remove('hidden');
+      panel.classList.add('active');
     }
   });
 });
 
-// Inisialisasi kode JavaScript asli di sini...
-// Semua kode JavaScript dari file asli harus ditempatkan di sini
-// Untuk contoh ini, saya tidak menyalin seluruh kode karena sangat panjang
-
-// Contoh inisialisasi canvas
+// Inisialisasi canvas
 const c = document.getElementById('c');
 const ctx = c.getContext('2d');
 
-// Variabel dan fungsi lainnya dari kode asli...
-// ...
+// Variabel global
+let shirtImg = null;
+let patternImg = null;
+let patternState = { 
+  x: c.width/2, 
+  y: c.height/2, 
+  scale: 1, 
+  rot: 0, 
+  alpha: 1, 
+  tiled: false 
+};
 
-// Untuk menghemat ruang, saya tidak menyalin seluruh kode JavaScript
-// Dalam implementasi nyata, semua kode JavaScript dari file asli harus disertakan
-
-// Inisialisasi sederhana untuk demonstrasi
+// Fungsi untuk menggambar background checkerboard
 function drawCheckerBackground(context, w, h) {
   const size = 16;
   for(let y = 0; y < h; y += size) {
@@ -391,6 +401,179 @@ ctx.fillStyle = '#666';
 ctx.font = '16px system-ui';
 ctx.textAlign = 'center';
 ctx.fillText('Upload baju dan motif untuk memulai', c.width/2, c.height/2);
+
+// Event listener untuk file upload
+document.getElementById('shirtFile').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = function(event) {
+    shirtImg = new Image();
+    shirtImg.onload = function() {
+      // Sesuaikan ukuran canvas dengan gambar baju
+      const maxWidth = 900;
+      const maxHeight = 1100;
+      const ratio = Math.min(maxWidth / shirtImg.width, maxHeight / shirtImg.height, 1);
+      c.width = Math.round(shirtImg.width * ratio);
+      c.height = Math.round(shirtImg.height * ratio);
+      
+      // Gambar ulang
+      drawCheckerBackground(ctx, c.width, c.height);
+      ctx.drawImage(shirtImg, 0, 0, c.width, c.height);
+      
+      // Reset posisi pattern jika ada
+      if (patternImg) {
+        patternState.x = c.width/2;
+        patternState.y = c.height/2;
+      }
+    };
+    shirtImg.src = event.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('patternFile').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = function(event) {
+    patternImg = new Image();
+    patternImg.onload = function() {
+      // Gambar pattern di atas baju
+      if (shirtImg) {
+        ctx.drawImage(shirtImg, 0, 0, c.width, c.height);
+      } else {
+        drawCheckerBackground(ctx, c.width, c.height);
+      }
+      
+      // Gambar pattern dengan pengaturan default
+      ctx.save();
+      ctx.translate(patternState.x, patternState.y);
+      ctx.rotate(patternState.rot * Math.PI / 180);
+      ctx.scale(patternState.scale, patternState.scale);
+      ctx.globalAlpha = patternState.alpha;
+      
+      const patternWidth = patternImg.width * 0.6;
+      const patternHeight = patternImg.height * 0.6;
+      ctx.drawImage(patternImg, -patternWidth/2, -patternHeight/2, patternWidth, patternHeight);
+      
+      ctx.restore();
+    };
+    patternImg.src = event.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+// Event listener untuk slider transformasi
+['posX', 'posY', 'scale', 'rotation', 'opacity'].forEach(id => {
+  document.getElementById(id).addEventListener('input', function() {
+    if (!patternImg) return;
+    
+    patternState.x = Number(document.getElementById('posX').value);
+    patternState.y = Number(document.getElementById('posY').value);
+    patternState.scale = Number(document.getElementById('scale').value);
+    patternState.rot = Number(document.getElementById('rotation').value);
+    patternState.alpha = Number(document.getElementById('opacity').value);
+    
+    // Gambar ulang
+    if (shirtImg) {
+      ctx.drawImage(shirtImg, 0, 0, c.width, c.height);
+    } else {
+      drawCheckerBackground(ctx, c.width, c.height);
+    }
+    
+    ctx.save();
+    ctx.translate(patternState.x, patternState.y);
+    ctx.rotate(patternState.rot * Math.PI / 180);
+    ctx.scale(patternState.scale, patternState.scale);
+    ctx.globalAlpha = patternState.alpha;
+    
+    const patternWidth = patternImg.width * 0.6;
+    const patternHeight = patternImg.height * 0.6;
+    ctx.drawImage(patternImg, -patternWidth/2, -patternHeight/2, patternWidth, patternHeight);
+    
+    ctx.restore();
+  });
+});
+
+// Event listener untuk tombol +/- 
+document.querySelectorAll('.step').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const targetId = this.getAttribute('data-target');
+    const step = Number(this.getAttribute('data-step'));
+    const target = document.getElementById(targetId);
+    
+    if (target) {
+      let value = Number(target.value);
+      value += step;
+      
+      // Pastikan nilai dalam range
+      if (target.min) value = Math.max(Number(target.min), value);
+      if (target.max) value = Math.min(Number(target.max), value);
+      
+      target.value = value;
+      target.dispatchEvent(new Event('input'));
+    }
+  });
+});
+
+// Event listener untuk tombol center
+document.getElementById('centerBtn').addEventListener('click', function() {
+  if (!patternImg) return;
+  
+  patternState.x = c.width/2;
+  patternState.y = c.height/2;
+  
+  document.getElementById('posX').value = patternState.x;
+  document.getElementById('posY').value = patternState.y;
+  
+  // Trigger input event untuk menggambar ulang
+  document.getElementById('posX').dispatchEvent(new Event('input'));
+});
+
+// Event listener untuk tombol download
+document.getElementById('downloadBtn').addEventListener('click', function() {
+  if (!shirtImg && !patternImg) return;
+  
+  const link = document.createElement('a');
+  link.download = 'mockup.png';
+  link.href = c.toDataURL('image/png');
+  link.click();
+});
+
+// Event listener untuk tombol reset
+document.getElementById('resetBtn').addEventListener('click', function() {
+  shirtImg = null;
+  patternImg = null;
+  patternState = { 
+    x: c.width/2, 
+    y: c.height/2, 
+    scale: 1, 
+    rot: 0, 
+    alpha: 1, 
+    tiled: false 
+  };
+  
+  // Reset nilai slider
+  document.getElementById('posX').value = patternState.x;
+  document.getElementById('posY').value = patternState.y;
+  document.getElementById('scale').value = patternState.scale;
+  document.getElementById('rotation').value = patternState.rot;
+  document.getElementById('opacity').value = patternState.alpha;
+  
+  // Reset file inputs
+  document.getElementById('shirtFile').value = '';
+  document.getElementById('patternFile').value = '';
+  
+  // Gambar ulang canvas
+  drawCheckerBackground(ctx, c.width, c.height);
+  ctx.fillStyle = '#666';
+  ctx.font = '16px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('Upload baju dan motif untuk memulai', c.width/2, c.height/2);
+});
 </script>
 </body>
 </html>
